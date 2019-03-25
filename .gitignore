@@ -1,0 +1,8 @@
+bin
+build
+run
+log
+*.log
+*.test
+vendor
+*/*.DS_Store
