@@ -14,38 +14,26 @@ const (
 	defaultTimeout = 3
 )
 
-type mysqlCreator struct{}
-
-type mysqlDB struct {
-	dbs     []*sql.DB
+// MySQLDB implements models.DB
+type MySQLDB struct {
+	db      *sql.DB
 	verbose bool
 }
 
-func (c mysqlCreator) Create(concurrent int, cfg models.DBConfig, verbose bool) (models.DB, error) {
-	d := &mysqlDB{
-		verbose: verbose,
+// Create implements Create of models.DB
+func (d *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
+	d := &MySQLDB{
+		verbose: cfg.Verbose,
 	}
-	dbs := make([]*sql.DB, 0, concurrent+1)
-	for i := 0; i < concurrent+1; i++ {
-		db, err := createDB(cfg.MySQL)
-		if err != nil {
-			closeDBs(dbs)
-			return nil, errors.Trace(err)
-		}
-	}
-	c.dbs = dbs
-	return c, nil
-}
-
-func closeDBs(dbs ...*sql.DB) {
-	for _, db := range dbs {
+	db, err := createDB(cfg.MySQL)
+	if err != nil {
 		if db != nil {
-			err := db.Close()
-			if err != nil {
-				log.Errorf("close db failed: %v", err)
-			}
+			db.Close()
 		}
+		return nil, errors.Trace(err)
 	}
+	d.db = db
+	return d, nil
 }
 
 func createDB(cfg models.MySQLConfig) (*sql.DB, error) {

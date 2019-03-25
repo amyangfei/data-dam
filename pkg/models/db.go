@@ -6,7 +6,7 @@ import (
 
 // DBCreator creates a database layer
 type DBCreator interface {
-	Create(concurrent int, cfg DBConfig) (DB, error)
+	Create(cfg DBConfig) (DB, error)
 }
 
 // DB is the layer to access the database
