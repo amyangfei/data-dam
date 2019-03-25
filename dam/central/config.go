@@ -9,6 +9,7 @@ import (
 	"github.com/pingcap/errors"
 
 	"github.com/amyangfei/data-dam/pkg/log"
+	"github.com/amyangfei/data-dam/pkg/models"
 	"github.com/amyangfei/data-dam/pkg/utils"
 )
 
@@ -25,6 +26,9 @@ type Config struct {
 
 	ConfigFile string `json:"config-file"`
 
+	Concurrent int             `toml:"concurrent" json:"concurrent"`
+	DBConfig   models.DBConfig `toml:"db-config" json:"db-config"`
+
 	printVersion bool
 }
 
@@ -38,6 +42,7 @@ func NewConfig() *Config {
 	fs.StringVar(&cfg.ConfigFile, "config", "", "path to config file")
 	fs.StringVar(&cfg.LogLevel, "L", "info", "log level: debug, info, warn, error, fatal")
 	fs.StringVar(&cfg.LogFile, "log-file", "log/data-dam-central.log", "log file path")
+	fs.IntVar(&cfg.Concurrent, "concurrent", 10, "concurrent for database")
 
 	return cfg
 }
