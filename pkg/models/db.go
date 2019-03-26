@@ -25,6 +25,7 @@ type Table struct {
 
 // DMLParams stores a DML information
 type DMLParams struct {
+	Type   OpType
 	Schema string
 	Table  string
 	Keys   map[string]interface{}
