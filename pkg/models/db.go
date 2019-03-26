@@ -4,6 +4,7 @@ import (
 	"context"
 )
 
+// Column stores column information
 type Column struct {
 	Idx      int
 	Name     string
@@ -13,12 +14,21 @@ type Column struct {
 	Extra    string
 }
 
+// Table stores table information
 type Table struct {
 	Schema string
 	Name   string
 
 	Columns      []*Column
 	IndexColumns map[string][]*Column
+}
+
+// DMLParams stores a DML information
+type DMLParams struct {
+	Schema string
+	Table  string
+	Keys   map[string]interface{}
+	Values map[string]interface{}
 }
 
 // DBCreator creates a database layer
@@ -43,4 +53,7 @@ type DB interface {
 
 	// Delete deletes a record from the database.
 	Delete(ctx context.Context, schema, table string, keys map[string]interface{}) error
+
+	// GenerateDML generates a DML record.
+	GenerateDML(ctx context.Context, opType OpType) (*DMLParams, error)
 }

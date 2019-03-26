@@ -1,14 +1,14 @@
 package mysql
 
 import (
-	"bytes"
+	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"strings"
 
 	"github.com/pingcap/errors"
 
-	"github.com/amyangfei/data-dam/pkg/log"
 	"github.com/amyangfei/data-dam/pkg/models"
 )
 
@@ -21,8 +21,10 @@ type MySQLDB struct {
 	db      *sql.DB
 	verbose bool
 
-	tables       map[string]*models.Table // table cache: `target-schema`.`target-table` -> table
-	cacheColumns map[string][]string      // table columns cache: `target-schema`.`target-table` -> column names list
+	entries      []string                 // table name cache: a `schema`.`table` slice
+	tables       map[string]*models.Table // table cache: `schema`.`table` -> table
+	cacheColumns map[string][]string      // table columns cache: `schema`.`table` -> column names list
+	nextID       int64
 }
 
 func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
@@ -40,10 +42,11 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 	return db, nil
 }
 
-// Create implements `Create` of models.DB
-func (md *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
+// Create creates a models.DB
+func Create(cfg models.DBConfig) (models.DB, error) {
 	md := &MySQLDB{
 		verbose:      cfg.Verbose,
+		entries:      make([]string, 0),
 		tables:       make(map[string]*models.Table),
 		cacheColumns: make(map[string][]string),
 	}
@@ -60,11 +63,18 @@ func (md *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
 
 func (md *MySQLDB) clearTableCache(schema, table string) {
 	key := TableName(schema, table)
+	for i := range md.entries {
+		if md.entries[i] == key {
+			md.entries = append(md.entries[:i], md.entries[i+1:]...)
+			break
+		}
+	}
 	delete(md.tables, key)
 	delete(md.cacheColumns, key)
 }
 
 func (md *MySQLDB) clearAllTableCache() {
+	md.entries = make([]string, 0)
 	md.tables = make(map[string]*models.Table)
 	md.cacheColumns = make(map[string][]string)
 }
@@ -74,8 +84,8 @@ func genSetFields(values map[string]interface{}, args *[]interface{}) string {
 		buf strings.Builder
 		idx = 0
 	)
-	for k, v := range keys {
-		if idx == len(keys)-1 {
+	for k, v := range values {
+		if idx == len(values)-1 {
 			fmt.Fprintf(&buf, "`%s` = ?", k)
 		} else {
 			fmt.Fprintf(&buf, "`%s` = ?, ", k)
@@ -124,7 +134,7 @@ func (md *MySQLDB) GetTable(ctx context.Context, schema, table string) (*models.
 	// compute cache column list for column mapping
 	columns := make([]string, 0, len(t.Columns))
 	for _, c := range t.Columns {
-		columns = append(columns, c.name)
+		columns = append(columns, c.Name)
 	}
 
 	md.tables[key] = t
@@ -142,10 +152,10 @@ func (md *MySQLDB) Insert(ctx context.Context, schema, table string, values map[
 	)
 	for k, v := range values {
 		if idx == len(values)-1 {
-			fmt.Fprintf(&buf, "`%s`")
+			fmt.Fprintf(&buf, "`%s`", k)
 			fmt.Fprintf(&valbuf, "?")
 		} else {
-			fmt.Fprintf(&buf, "`%s`, ")
+			fmt.Fprintf(&buf, "`%s`, ", k)
 			fmt.Fprintf(&valbuf, "?, ")
 		}
 		args = append(args, v)
@@ -163,7 +173,7 @@ func (md *MySQLDB) Update(ctx context.Context, schema, table string, keys map[st
 	kvs := genSetFields(values, &args)
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("UPDATE `%s`.`%s` SET %s WHERE %s;", schema, table, kvs, where)
-	_, err = md.db.ExecContext(ctx, stmt, args...)
+	_, err := md.db.ExecContext(ctx, stmt, args...)
 	return errors.Trace(err)
 }
 
@@ -172,6 +182,44 @@ func (md *MySQLDB) Delete(ctx context.Context, schema, table string, keys map[st
 	args := make([]interface{}, 0, len(keys))
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s;", schema, table, where)
-	_, err = md.db.ExecContext(ctx, stmt, args...)
+	_, err := md.db.ExecContext(ctx, stmt, args...)
 	return errors.Trace(err)
+}
+
+// Close implements `Close` of models.DB
+func (md *MySQLDB) Close() error {
+	if md.db != nil {
+		err := md.db.Close()
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
+	return nil
+}
+
+// GenerateDML implements `GenerateDML` of models.DB
+func (md *MySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*models.DMLParams, error) {
+	if len(md.entries) == 0 {
+		return nil, errors.New("MySQLDB has no table cache")
+	}
+	entry := md.entries[rand.Intn(len(md.entries))]
+	table, ok := md.tables[entry]
+	if !ok {
+		return nil, errors.Errorf("%s not in table cache", entry)
+	}
+	schema, name := table.Schema, table.Name
+	switch opType {
+	case models.Insert:
+	case models.Update:
+	case models.Delete:
+	default:
+		return nil, errors.NotValidf("DML OpType: %d", opType)
+	}
+	params := &models.DMLParams{
+		Schema: schema,
+		Table:  name,
+		Keys:   nil,
+		Values: nil,
+	}
+	return params, nil
 }

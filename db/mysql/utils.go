@@ -35,7 +35,7 @@ func getTableFromDB(db *sql.DB, schema string, name string) (*models.Table, erro
 	table := &models.Table{}
 	table.Schema = schema
 	table.Name = name
-	table.IndexColumns = make(map[string][]*Column)
+	table.IndexColumns = make(map[string][]*models.Column)
 
 	err := getTableColumns(db, table, queryMaxRetry)
 	if err != nil {
@@ -54,7 +54,7 @@ func getTableFromDB(db *sql.DB, schema string, name string) (*models.Table, erro
 	return table, nil
 }
 
-func getTableColumns(db *sql.DB, table *Table, maxRetry int) error {
+func getTableColumns(db *sql.DB, table *models.Table, maxRetry int) error {
 	if table.Schema == "" || table.Name == "" {
 		return errors.New("schema/table is empty")
 	}
@@ -114,7 +114,7 @@ func getTableColumns(db *sql.DB, table *Table, maxRetry int) error {
 			column.Unsigned = true
 		}
 
-		table.Columns = append(table.Columns, Column)
+		table.Columns = append(table.Columns, column)
 		idx++
 	}
 
@@ -125,13 +125,13 @@ func getTableColumns(db *sql.DB, table *Table, maxRetry int) error {
 	return nil
 }
 
-func getTableIndex(db *db.sql, table *models.Table, maxRetry int) error {
+func getTableIndex(db *sql.DB, table *models.Table, maxRetry int) error {
 	if table.Schema == "" || table.Name == "" {
 		return errors.New("schema/table is empty")
 	}
 
 	query := fmt.Sprintf("SHOW INDEX FROM `%s`.`%s`", table.Schema, table.Name)
-	rows, err := db.querySQL(query, maxRetry)
+	rows, err := querySQL(db, query, maxRetry)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -196,7 +196,7 @@ func findColumns(columns []*models.Column, indexColumns map[string][]string) map
 	result := make(map[string][]*models.Column)
 
 	for keyName, indexCols := range indexColumns {
-		cols := make([]*column, 0, len(indexCols))
+		cols := make([]*models.Column, 0, len(indexCols))
 		for _, name := range indexCols {
 			column := findColumn(columns, name)
 			if column != nil {

@@ -13,21 +13,29 @@ import (
 )
 
 var (
-	flushInterval = 1 * time.Minute
+	flushInterval  = 1 * time.Minute
+	DefaultOpWeiht = []int{5, 4, 1, 0}
 )
 
-type opType byte
+type OpType byte
 
 const (
-	insert = iota
-	update
-	del
-	ddl
-	flush
+	Insert OpType = iota
+	Update
+	Delete
+	Ddl
+	Flush
 )
 
+var RealOpType = []OpType{
+	Insert,
+	Update,
+	Delete,
+	Ddl,
+}
+
 type job struct {
-	tp     opType
+	tp     OpType
 	schema string
 	table  string
 	key    string
@@ -86,23 +94,23 @@ func (d *JobDispatcher) createJobChans() {
 
 func (d *JobDispatcher) AddJob(job *job) {
 	switch job.tp {
-	case flush:
+	case Flush:
 		d.jobWg.Add(d.WorkerCount)
 		for i := 0; i < d.WorkerCount; i++ {
 			d.jobs[i] <- job
 		}
 		d.jobWg.Wait()
-	case ddl:
+	case Ddl:
 		d.jobWg.Wait()
 		d.jobWg.Add(1)
 		d.jobs[d.WorkerCount] <- job
-	case insert, update, del:
+	case Insert, Update, Delete:
 		d.jobWg.Add(1)
 		bucket := int(utils.GenHashKey(job.key)) % d.WorkerCount
 		d.jobs[bucket] <- job
 	}
 
-	if job.tp == ddl {
+	if job.tp == Ddl {
 		d.jobWg.Wait()
 	}
 }
@@ -126,11 +134,11 @@ func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*job) err
 	var err error
 	for _, job := range jobs {
 		switch job.tp {
-		case insert:
+		case Insert:
 			err = db.Insert(ctx, job.schema, job.table, job.values)
-		case update:
+		case Update:
 			db.Update(ctx, job.schema, job.table, job.keys, job.values)
-		case del:
+		case Delete:
 			db.Delete(ctx, job.schema, job.table, job.keys)
 		}
 		if err != nil {
@@ -169,10 +177,10 @@ func (d *JobDispatcher) dispatch(ctx context.Context, db DB, jobChan <-chan *job
 			if !ok {
 				return
 			}
-			if job.tp != flush {
+			if job.tp != Flush {
 				jobs = append(jobs, job)
 			}
-			if len(jobs) >= count || job.tp == flush {
+			if len(jobs) >= count || job.tp == Flush {
 				err = d.processJobs(ctx, db, jobs)
 				clearJobs(err)
 			}

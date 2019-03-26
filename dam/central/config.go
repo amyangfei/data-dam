@@ -32,6 +32,7 @@ type Config struct {
 	Duration   string          `toml:"duration" json:"duration"`
 	Concurrent int             `toml:"concurrent" json:"concurrent"`
 	DBConfig   models.DBConfig `toml:"db-config" json:"db-config"`
+	OpWeight   []int           `toml:"op-weight" json:"op-weight"`
 
 	printVersion bool
 }
@@ -93,6 +94,16 @@ func (c *Config) veirfy() error {
 		return errors.Trace(err)
 	}
 	c.Seconds = int64(d.Seconds())
+
+	// TODO: currently support MySQL only, add more database support later
+	if !c.DBConfig.MySQL.Enabled {
+		return errors.New("support MySQL/MariaDB only")
+	}
+
+	if len(c.OpWeight) != len(models.RealOpType) {
+		c.OpWeight = models.DefaultOpWeiht
+	}
+
 	return nil
 }
 

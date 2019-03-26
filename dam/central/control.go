@@ -30,11 +30,9 @@ func NewController(cfg *Config) *Controller {
 	return c
 }
 
-// Start starts data controller
+// Start starts data dam controller
 func (c *Controller) Start() error {
 	c.closed.Set(false)
-
-	log.Infof("controller config: %s", c.cfg)
 
 	// if c.cfg.Seconds = 0, runs forever until context is Done
 	if c.cfg.Seconds > 0 {
@@ -50,13 +48,6 @@ func (c *Controller) Start() error {
 		}()
 	}
 
-OUTFOR:
-	for {
-		select {
-		case <-c.ctx.Done():
-			break OUTFOR
-		}
-	}
 	return nil
 }
 
