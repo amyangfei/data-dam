@@ -5,10 +5,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/siddontang/go/sync2"
 
 	"github.com/amyangfei/data-dam/pkg/log"
+	"github.com/amyangfei/data-dam/pkg/models"
 )
+
+// RunError collects errors from sub goroutine
+type RunError struct {
+	source string
+	err    error
+}
 
 // Controller is data dam central controller
 type Controller struct {
@@ -18,13 +26,15 @@ type Controller struct {
 
 	cfg *Config
 
-	closed sync2.AtomicBool
+	closed       sync2.AtomicBool
+	runErrorChan chan *RunError
 }
 
 // NewController returns a new central controller for data flow
 func NewController(cfg *Config) *Controller {
 	c := &Controller{
-		cfg: cfg,
+		cfg:          cfg,
+		runErrorChan: make(chan *RunError, 2),
 	}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	return c
@@ -47,6 +57,44 @@ func (c *Controller) Start() error {
 			}
 		}()
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			err, ok := <-c.runErrorChan
+			if !ok {
+				return
+			}
+			log.Errorf("RunError source: %s error: %s", err.source, errors.ErrorStack(err.err))
+			c.cancel()
+		}
+	}()
+
+	dispatcher := models.NewJobDispatcher(c.ctx)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		generator, err := NewGenerator(c.cfg, dispatcher)
+		if err != nil {
+			c.runErrorChan <- &RunError{"create generator", errors.Trace(err)}
+			return
+		}
+		err = generator.Run(c.ctx)
+		if err != nil {
+			c.runErrorChan <- &RunError{"generator run", errors.Trace(err)}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+	}()
+
+	close(c.runErrorChan)
+	wg.Wait()
 
 	return nil
 }

@@ -13,13 +13,14 @@ import (
 
 // Generator is a database operation generator
 type Generator struct {
-	rate   int
-	db     models.DB
-	weight weighted.W
+	rate       int
+	db         models.DB
+	weight     weighted.W
+	dispatcher *models.JobDispatcher
 }
 
 // NewGenerator returns a new Generator
-func NewGenerator(cfg *Config) (*Generator, error) {
+func NewGenerator(cfg *Config, dispatcher *models.JobDispatcher) (*Generator, error) {
 
 	// TODO: support MySQL only now, add more database support in the future
 	db, err := md.Create(cfg.DBConfig)
@@ -33,9 +34,10 @@ func NewGenerator(cfg *Config) (*Generator, error) {
 	}
 
 	gen := &Generator{
-		rate:   cfg.Rate,
-		db:     db,
-		weight: weight,
+		rate:       cfg.Rate,
+		db:         db,
+		weight:     weight,
+		dispatcher: dispatcher,
 	}
 	return gen, nil
 }
@@ -54,10 +56,11 @@ func (g *Generator) Run(ctx context.Context) error {
 			}
 			return errors.Trace(err)
 		}
-		_, err = g.Next(ctx)
+		params, err := g.Next(ctx)
 		if err != nil {
 			return errors.Trace(err)
 		}
+		g.dispatcher.AddDML(params)
 	}
 }
 

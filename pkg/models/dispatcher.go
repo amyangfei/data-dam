@@ -47,7 +47,7 @@ var RealOpType = []OpType{
 	Ddl,
 }
 
-type job struct {
+type sqlJob struct {
 	tp     OpType
 	schema string
 	table  string
@@ -68,7 +68,7 @@ type JobDispatcher struct {
 	BatchSize   int
 	WorkerCount int
 
-	jobs         []chan *job
+	jobs         []chan *sqlJob
 	jobsChanLock sync.Mutex
 	jobsClosed   sync2.AtomicBool
 
@@ -76,10 +76,10 @@ type JobDispatcher struct {
 }
 
 // NewJobDispatcher returns a new JobDispatcher
-func NewJobDispatcher() *JobDispatcher {
+func NewJobDispatcher(ctx context.Context) *JobDispatcher {
 	d := &JobDispatcher{}
 	d.jobsClosed.Set(true)
-	d.ctx, d.cancel = context.WithCancel(context.Background())
+	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.createJobChans()
 	return d
 }
@@ -98,15 +98,26 @@ func (d *JobDispatcher) closeJobChans() {
 
 func (d *JobDispatcher) createJobChans() {
 	d.closeJobChans()
-	d.jobs = make([]chan *job, 0, d.WorkerCount+1)
+	d.jobs = make([]chan *sqlJob, 0, d.WorkerCount+1)
 	for i := 0; i < d.WorkerCount+1; i++ {
-		d.jobs = append(d.jobs, make(chan *job, d.BatchSize+1))
+		d.jobs = append(d.jobs, make(chan *sqlJob, d.BatchSize+1))
 	}
 	d.jobsClosed.Set(false)
 }
 
-// AddJob adds a new job to dispatcher
-func (d *JobDispatcher) AddJob(job *job) {
+// AddDML adds a DML job from DMLParams
+func (d *JobDispatcher) AddDML(dml *DMLParams) {
+	job := &sqlJob{
+		tp:     dml.Type,
+		schema: dml.Schema,
+		table:  dml.Table,
+		keys:   dml.Keys,
+		values: dml.Values,
+	}
+	d.addJob(job)
+}
+
+func (d *JobDispatcher) addJob(job *sqlJob) {
 	switch job.tp {
 	case Flush:
 		d.jobWg.Add(d.WorkerCount)
@@ -141,7 +152,7 @@ func (d *JobDispatcher) Start() {
 	}
 }
 
-func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*job) error {
+func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*sqlJob) error {
 	if len(jobs) == 0 {
 		return nil
 	}
@@ -163,12 +174,12 @@ func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*job) err
 	return nil
 }
 
-func (d *JobDispatcher) dispatch(ctx context.Context, db DB, jobChan <-chan *job) {
+func (d *JobDispatcher) dispatch(ctx context.Context, db DB, jobChan <-chan *sqlJob) {
 	defer d.wg.Done()
 
 	var (
 		count = d.BatchSize
-		jobs  = make([]*job, 0, count)
+		jobs  = make([]*sqlJob, 0, count)
 	)
 
 	clearJobs := func(err error) {
