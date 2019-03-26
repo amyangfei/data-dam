@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap/errors"
@@ -26,6 +27,9 @@ type Config struct {
 
 	ConfigFile string `json:"config-file"`
 
+	Seconds    int64
+	Rate       int             `toml:"rate" json:"rate"`
+	Duration   string          `toml:"duration" json:"duration"`
 	Concurrent int             `toml:"concurrent" json:"concurrent"`
 	DBConfig   models.DBConfig `toml:"db-config" json:"db-config"`
 
@@ -42,6 +46,8 @@ func NewConfig() *Config {
 	fs.StringVar(&cfg.ConfigFile, "config", "", "path to config file")
 	fs.StringVar(&cfg.LogLevel, "L", "info", "log level: debug, info, warn, error, fatal")
 	fs.StringVar(&cfg.LogFile, "log-file", "log/data-dam-central.log", "log file path")
+	fs.IntVar(&cfg.Rate, "rate", 5, "number of requests per time unit (5/1s)")
+	fs.StringVar(&cfg.Duration, "duration", "10s", "test duration (0 = forever)")
 	fs.IntVar(&cfg.Concurrent, "concurrent", 10, "concurrent for database")
 
 	return cfg
@@ -78,6 +84,15 @@ func (c *Config) Parse(arguments []string) error {
 		return errors.Errorf("'%s' is an invalid flag", c.flagSet.Arg(0))
 	}
 
+	return errors.Trace(c.veirfy())
+}
+
+func (c *Config) veirfy() error {
+	d, err := time.ParseDuration(c.Duration)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	c.Seconds = int64(d.Seconds())
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -52,30 +53,84 @@ func (md *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
 	return md, nil
 }
 
+func genSetFields(values map[string]interface{}, args *[]interface{}) string {
+	var (
+		buf strings.Builder
+		idx = 0
+	)
+	for k, v := range keys {
+		if idx == len(keys)-1 {
+			fmt.Fprintf(&buf, "`%s` = ?", k)
+		} else {
+			fmt.Fprintf(&buf, "`%s` = ?, ", k)
+		}
+		*args = append(*args, v)
+		idx++
+	}
+	return buf.String()
+}
+
+func genWhere(keys map[string]interface{}, args *[]interface{}) string {
+	var (
+		buf strings.Builder
+		idx = 0
+	)
+	for k, v := range keys {
+		kvSplit := "="
+		if v == nil {
+			kvSplit = "IS"
+		}
+		if idx == len(keys)-1 {
+			fmt.Fprintf(&buf, "`%s` %s ?", k, kvSplit)
+		} else {
+			fmt.Fprintf(&buf, "`%s` %s ? AND ", k, kvSplit)
+		}
+		*args = append(*args, v)
+		idx++
+	}
+	return buf.String()
+}
+
 // Insert implements `Insert` of models.DB
 func (md *MySQLDB) Insert(ctx context.Context, schema, table string, values map[string]interface{}) error {
 	var (
-		fields, placeholder = make([]string, 0, len(values))
-		args                = make([]intervace{}, 0, len(values))
-		err                 error
+		args        = make([]interface{}, 0, len(values))
+		buf, valbuf strings.Builder
+		idx         = 0
+		err         error
 	)
 	for k, v := range values {
-		fields = append(fields, "`"+k+"`")
-		placeholder = append(placeholder, "?")
+		if idx == len(values)-1 {
+			fmt.Fprintf(&buf, "`%s`")
+			fmt.Fprintf(&valbuf, "?")
+		} else {
+			fmt.Fprintf(&buf, "`%s`, ")
+			fmt.Fprintf(&valbuf, "?, ")
+		}
 		args = append(args, v)
+		idx++
 	}
-	stmt := fmt.Sprintf(
-		"INSERT INTO `%s`.`%s` (%s) VALUES (%s)", schema, table,
-		strings.Join(fields, ","), strings.Join(placeholder))
+	stmt := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s);", schema, table, buf.String(), valbuf.String())
 	_, err = md.db.ExecContext(ctx, stmt, args...)
 
 	return errors.Trace(err)
 }
 
-// Insert implements `Update` of models.DB
+// Update implements `Update` of models.DB
 func (md *MySQLDB) Update(ctx context.Context, schema, table string, keys map[string]interface{}, values map[string]interface{}) error {
+	args := make([]interface{}, 0, len(keys)+len(values))
+	kvs := genSetFields(values, &args)
+	where := genWhere(keys, &args)
+	stmt := fmt.Sprintf("UPDATE `%s`.`%s` SET %s WHERE %s;", schema, table, kvs, where)
+	_, err = md.db.ExecContext(ctx, stmt, args...)
+	return errors.Trace(err)
 }
 
-// Insert implements `Delete` of models.DB
+// Delete implements `Delete` of models.DB
 func (md *MySQLDB) Delete(ctx context.Context, schema, table string, keys map[string]interface{}) error {
+	args := make([]interface{}, 0, len(keys))
+	where := genWhere(keys, &args)
+	stmt := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s;", schema, table, where)
+	_, err = md.db.ExecContext(ctx, stmt, args...)
+	return errors.Trace(err)
 }
