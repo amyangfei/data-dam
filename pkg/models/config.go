@@ -6,6 +6,7 @@ type DBConfig struct {
 	MySQL   MySQLConfig `toml:"mysql" json:"mysql"`     // mysql config
 }
 
+// MySQLConfig stores mysql config
 type MySQLConfig struct {
 	Host     string `toml:"host" json:"host"`
 	Port     int    `toml:"port" json:"port"`

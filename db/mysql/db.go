@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	defaultTimeout = 3
+	defaultTimeout = "3s"
 )
 
-// MySQLDB implements models.DB
-type MySQLDB struct {
+// ImpMySQLDB implements models.DB
+type ImpMySQLDB struct {
 	db      *sql.DB
 	verbose bool
 
@@ -34,6 +34,7 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 		cfg.Password,
 		cfg.Host,
 		cfg.Port,
+		defaultTimeout,
 	)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -44,7 +45,7 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 
 // Create creates a models.DB
 func Create(cfg models.DBConfig) (models.DB, error) {
-	md := &MySQLDB{
+	md := &ImpMySQLDB{
 		verbose:      cfg.Verbose,
 		entries:      make([]string, 0),
 		tables:       make(map[string]*models.Table),
@@ -61,7 +62,7 @@ func Create(cfg models.DBConfig) (models.DB, error) {
 	return md, nil
 }
 
-func (md *MySQLDB) clearTableCache(schema, table string) {
+func (md *ImpMySQLDB) clearTableCache(schema, table string) {
 	key := TableName(schema, table)
 	for i := range md.entries {
 		if md.entries[i] == key {
@@ -73,7 +74,7 @@ func (md *MySQLDB) clearTableCache(schema, table string) {
 	delete(md.cacheColumns, key)
 }
 
-func (md *MySQLDB) clearAllTableCache() {
+func (md *ImpMySQLDB) clearAllTableCache() {
 	md.entries = make([]string, 0)
 	md.tables = make(map[string]*models.Table)
 	md.cacheColumns = make(map[string][]string)
@@ -118,7 +119,7 @@ func genWhere(keys map[string]interface{}, args *[]interface{}) string {
 }
 
 // GetTable implements `GetTable` of models.DB
-func (md *MySQLDB) GetTable(ctx context.Context, schema, table string) (*models.Table, []string, error) {
+func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*models.Table, []string, error) {
 	key := TableName(schema, table)
 
 	value, ok := md.tables[key]
@@ -143,7 +144,7 @@ func (md *MySQLDB) GetTable(ctx context.Context, schema, table string) (*models.
 }
 
 // Insert implements `Insert` of models.DB
-func (md *MySQLDB) Insert(ctx context.Context, schema, table string, values map[string]interface{}) error {
+func (md *ImpMySQLDB) Insert(ctx context.Context, schema, table string, values map[string]interface{}) error {
 	var (
 		args        = make([]interface{}, 0, len(values))
 		buf, valbuf strings.Builder
@@ -168,7 +169,7 @@ func (md *MySQLDB) Insert(ctx context.Context, schema, table string, values map[
 }
 
 // Update implements `Update` of models.DB
-func (md *MySQLDB) Update(ctx context.Context, schema, table string, keys map[string]interface{}, values map[string]interface{}) error {
+func (md *ImpMySQLDB) Update(ctx context.Context, schema, table string, keys map[string]interface{}, values map[string]interface{}) error {
 	args := make([]interface{}, 0, len(keys)+len(values))
 	kvs := genSetFields(values, &args)
 	where := genWhere(keys, &args)
@@ -178,7 +179,7 @@ func (md *MySQLDB) Update(ctx context.Context, schema, table string, keys map[st
 }
 
 // Delete implements `Delete` of models.DB
-func (md *MySQLDB) Delete(ctx context.Context, schema, table string, keys map[string]interface{}) error {
+func (md *ImpMySQLDB) Delete(ctx context.Context, schema, table string, keys map[string]interface{}) error {
 	args := make([]interface{}, 0, len(keys))
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s;", schema, table, where)
@@ -187,7 +188,7 @@ func (md *MySQLDB) Delete(ctx context.Context, schema, table string, keys map[st
 }
 
 // Close implements `Close` of models.DB
-func (md *MySQLDB) Close() error {
+func (md *ImpMySQLDB) Close() error {
 	if md.db != nil {
 		err := md.db.Close()
 		if err != nil {
@@ -198,9 +199,9 @@ func (md *MySQLDB) Close() error {
 }
 
 // GenerateDML implements `GenerateDML` of models.DB
-func (md *MySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*models.DMLParams, error) {
+func (md *ImpMySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*models.DMLParams, error) {
 	if len(md.entries) == 0 {
-		return nil, errors.New("MySQLDB has no table cache")
+		return nil, errors.New("ImpMySQLDB has no table cache")
 	}
 	entry := md.entries[rand.Intn(len(md.entries))]
 	table, ok := md.tables[entry]

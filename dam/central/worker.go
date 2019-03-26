@@ -40,6 +40,7 @@ func NewGenerator(cfg *Config) (*Generator, error) {
 	return gen, nil
 }
 
+// Run starts generator's main loop
 func (g *Generator) Run(ctx context.Context) error {
 	var (
 		err error
@@ -58,7 +59,6 @@ func (g *Generator) Run(ctx context.Context) error {
 			return errors.Trace(err)
 		}
 	}
-	return nil
 }
 
 // Next generates next database operation (DML only, DDL support is wip).

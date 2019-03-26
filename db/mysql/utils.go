@@ -14,6 +14,7 @@ const (
 	queryMaxRetry = 3
 )
 
+// TableName returns table name with schema
 func TableName(schema, name string) string {
 	return fmt.Sprintf("`%s`.`%s`", escapeName(schema), escapeName(name))
 }

@@ -25,6 +25,6 @@ func TestReleaseInfo(t *testing.T) {
 			"UTC Build Time: " + BuildTS,
 			"Go Version: " + GoVersion,
 		}, "\n") + "\n"
-	info := ReleaseInfo(binName)
+	info := GetRawInfo(binName)
 	assert.Equal(t, expected, info)
 }

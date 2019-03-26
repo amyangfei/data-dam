@@ -13,20 +13,33 @@ import (
 )
 
 var (
-	flushInterval  = 1 * time.Minute
+	flushInterval = 1 * time.Minute
+
+	// DefaultOpWeiht is default weight for SQL operations
 	DefaultOpWeiht = []int{5, 4, 1, 0}
 )
 
+// OpType is database operation type
 type OpType byte
 
 const (
+	// Insert stmt
 	Insert OpType = iota
+
+	// Update stmt
 	Update
+
+	// Delete stmt
 	Delete
+
+	// Ddl stmt
 	Ddl
+
+	// Flush is internal command
 	Flush
 )
 
+// RealOpType excludes internal command type
 var RealOpType = []OpType{
 	Insert,
 	Update,
@@ -92,6 +105,7 @@ func (d *JobDispatcher) createJobChans() {
 	d.jobsClosed.Set(false)
 }
 
+// AddJob adds a new job to dispatcher
 func (d *JobDispatcher) AddJob(job *job) {
 	switch job.tp {
 	case Flush:
@@ -115,6 +129,7 @@ func (d *JobDispatcher) AddJob(job *job) {
 	}
 }
 
+// Start starts dispatcher main loop
 func (d *JobDispatcher) Start() {
 	for i := 0; i < d.WorkerCount+1; i++ {
 		d.wg.Add(1)
