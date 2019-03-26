@@ -20,6 +20,9 @@ const (
 type MySQLDB struct {
 	db      *sql.DB
 	verbose bool
+
+	tables       map[string]*models.Table // table cache: `target-schema`.`target-table` -> table
+	cacheColumns map[string][]string      // table columns cache: `target-schema`.`target-table` -> column names list
 }
 
 func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
@@ -40,7 +43,9 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 // Create implements `Create` of models.DB
 func (md *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
 	md := &MySQLDB{
-		verbose: cfg.Verbose,
+		verbose:      cfg.Verbose,
+		tables:       make(map[string]*models.Table),
+		cacheColumns: make(map[string][]string),
 	}
 	db, err := createDB(cfg.MySQL)
 	if err != nil {
@@ -51,6 +56,17 @@ func (md *MySQLDB) Create(cfg models.DBConfig) (models.DB, error) {
 	}
 	md.db = db
 	return md, nil
+}
+
+func (md *MySQLDB) clearTableCache(schema, table string) {
+	key := TableName(schema, table)
+	delete(md.tables, key)
+	delete(md.cacheColumns, key)
+}
+
+func (md *MySQLDB) clearAllTableCache() {
+	md.tables = make(map[string]*models.Table)
+	md.cacheColumns = make(map[string][]string)
 }
 
 func genSetFields(values map[string]interface{}, args *[]interface{}) string {
@@ -89,6 +105,31 @@ func genWhere(keys map[string]interface{}, args *[]interface{}) string {
 		idx++
 	}
 	return buf.String()
+}
+
+// GetTable implements `GetTable` of models.DB
+func (md *MySQLDB) GetTable(ctx context.Context, schema, table string) (*models.Table, []string, error) {
+	key := TableName(schema, table)
+
+	value, ok := md.tables[key]
+	if ok {
+		return value, md.cacheColumns[key], nil
+	}
+
+	t, err := getTableFromDB(md.db, schema, table)
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	// compute cache column list for column mapping
+	columns := make([]string, 0, len(t.Columns))
+	for _, c := range t.Columns {
+		columns = append(columns, c.name)
+	}
+
+	md.tables[key] = t
+	md.cacheColumns[key] = columns
+	return t, columns, nil
 }
 
 // Insert implements `Insert` of models.DB

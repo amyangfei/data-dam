@@ -11,4 +11,5 @@ type MySQLConfig struct {
 	Port     int    `toml:"port" json:"port"`
 	User     string `toml:"user" json:"user"`
 	Password string `toml:"password" json:"password"`
+	Enabled  bool   `toml:"enabled" json:"enabled"`
 }
