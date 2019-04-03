@@ -12,6 +12,10 @@ import (
 	"github.com/amyangfei/data-dam/pkg/models"
 )
 
+var (
+	backendBatchSize = 3
+)
+
 // RunError collects errors from sub goroutine
 type RunError struct {
 	source string
@@ -72,7 +76,7 @@ func (c *Controller) Start() error {
 		}
 	}()
 
-	dispatcher := models.NewJobDispatcher(c.ctx)
+	dispatcher := models.NewJobDispatcher(c.ctx, c.cfg.Concurrent, backendBatchSize, &c.cfg.DBConfig)
 
 	wg.Add(1)
 	go func() {
@@ -91,10 +95,11 @@ func (c *Controller) Start() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		dispatcher.Run()
 	}()
 
-	close(c.runErrorChan)
 	wg.Wait()
+	close(c.runErrorChan)
 
 	return nil
 }

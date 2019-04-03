@@ -20,7 +20,7 @@ const (
 
 // Config is the configuration
 type Config struct {
-	flagSet *flag.FlagSet
+	*flag.FlagSet
 
 	LogLevel string `toml:"log-level" json:"log-level"`
 	LogFile  string `toml:"log-file" json:"log-file"`
@@ -40,8 +40,8 @@ type Config struct {
 // NewConfig creates a new base config for central.
 func NewConfig() *Config {
 	cfg := &Config{}
-	cfg.flagSet = flag.NewFlagSet("central", flag.ContinueOnError)
-	fs := cfg.flagSet
+	cfg.FlagSet = flag.NewFlagSet("central", flag.ContinueOnError)
+	fs := cfg.FlagSet
 
 	fs.BoolVar(&cfg.printVersion, "V", false, "prints version and exit")
 	fs.StringVar(&cfg.ConfigFile, "config", "", "path to config file")
@@ -57,7 +57,7 @@ func NewConfig() *Config {
 // Parse parses flag definitions from the argument list.
 func (c *Config) Parse(arguments []string) error {
 	// Parse first to get config file.
-	err := c.flagSet.Parse(arguments)
+	err := c.FlagSet.Parse(arguments)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -76,13 +76,13 @@ func (c *Config) Parse(arguments []string) error {
 	}
 
 	// Parse again to replace with command line options.
-	err = c.flagSet.Parse(arguments)
+	err = c.FlagSet.Parse(arguments)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	if len(c.flagSet.Args()) != 0 {
-		return errors.Errorf("'%s' is an invalid flag", c.flagSet.Arg(0))
+	if len(c.FlagSet.Args()) != 0 {
+		return errors.Errorf("'%s' is an invalid flag", c.FlagSet.Arg(0))
 	}
 
 	return errors.Trace(c.veirfy())

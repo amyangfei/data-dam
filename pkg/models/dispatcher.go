@@ -76,8 +76,11 @@ type JobDispatcher struct {
 }
 
 // NewJobDispatcher returns a new JobDispatcher
-func NewJobDispatcher(ctx context.Context) *JobDispatcher {
-	d := &JobDispatcher{}
+func NewJobDispatcher(ctx context.Context, workerCount, batchSize int, cfg *DBConfig) *JobDispatcher {
+	d := &JobDispatcher{
+		WorkerCount: workerCount,
+		BatchSize:   batchSize,
+	}
 	d.jobsClosed.Set(true)
 	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.createJobChans()
@@ -100,7 +103,7 @@ func (d *JobDispatcher) createJobChans() {
 	d.closeJobChans()
 	d.jobs = make([]chan *sqlJob, 0, d.WorkerCount+1)
 	for i := 0; i < d.WorkerCount+1; i++ {
-		d.jobs = append(d.jobs, make(chan *sqlJob, d.BatchSize+1))
+		d.jobs = append(d.jobs, make(chan *sqlJob, d.BatchSize))
 	}
 	d.jobsClosed.Set(false)
 }
@@ -140,16 +143,18 @@ func (d *JobDispatcher) addJob(job *sqlJob) {
 	}
 }
 
-// Start starts dispatcher main loop
-func (d *JobDispatcher) Start() {
+// Run starts dispatcher main loop
+func (d *JobDispatcher) Run() {
 	for i := 0; i < d.WorkerCount+1; i++ {
 		d.wg.Add(1)
 		go func(idx int) {
+			defer d.wg.Done()
 			ctx2, cancel := context.WithCancel(d.ctx)
 			d.dispatch(ctx2, d.DBs[idx], d.jobs[idx])
 			cancel()
 		}(i)
 	}
+	d.wg.Wait()
 }
 
 func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*sqlJob) error {
@@ -163,9 +168,9 @@ func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*sqlJob) 
 		case Insert:
 			err = db.Insert(ctx, job.schema, job.table, job.values)
 		case Update:
-			db.Update(ctx, job.schema, job.table, job.keys, job.values)
+			err = db.Update(ctx, job.schema, job.table, job.keys, job.values)
 		case Delete:
-			db.Delete(ctx, job.schema, job.table, job.keys)
+			err = db.Delete(ctx, job.schema, job.table, job.keys)
 		}
 		if err != nil {
 			return errors.Trace(err)
@@ -175,8 +180,6 @@ func (d *JobDispatcher) processJobs(ctx context.Context, db DB, jobs []*sqlJob) 
 }
 
 func (d *JobDispatcher) dispatch(ctx context.Context, db DB, jobChan <-chan *sqlJob) {
-	defer d.wg.Done()
-
 	var (
 		count = d.BatchSize
 		jobs  = make([]*sqlJob, 0, count)
