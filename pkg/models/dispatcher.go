@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/pingcap/errors"
 	"github.com/siddontang/go/sync2"
 

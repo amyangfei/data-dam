@@ -121,6 +121,27 @@ func genWhere(keys map[string]interface{}, args *[]interface{}) string {
 	return buf.String()
 }
 
+// PrepareTables implements `PrepareTables` of modes.DB
+func (md *ImpMySQLDB) PrepareTables(ctx context.Context, schema string) ([]*models.Table, [][]string, error) {
+	names, err := findTables(md.db, schema)
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+	var (
+		tables      = make([]*models.Table, 0, len(names))
+		columnNames = make([][]string, 0, len(names))
+	)
+	for _, name := range names {
+		t, columnName, err := md.GetTable(ctx, schema, name)
+		if err != nil {
+			return nil, nil, errors.Trace(err)
+		}
+		tables = append(tables, t)
+		columnNames = append(columnNames, columnName)
+	}
+	return tables, columnNames, nil
+}
+
 // GetTable implements `GetTable` of models.DB
 func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*models.Table, []string, error) {
 	key := TableName(schema, table)

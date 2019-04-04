@@ -10,6 +10,7 @@ import (
 	"github.com/pingcap/errors"
 
 	"github.com/amyangfei/data-dam/dam/central"
+	_ "github.com/amyangfei/data-dam/db/mysql" // Register MySQL database
 	"github.com/amyangfei/data-dam/pkg/log"
 	"github.com/amyangfei/data-dam/pkg/utils"
 )

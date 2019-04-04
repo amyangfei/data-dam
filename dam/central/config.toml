@@ -1,5 +1,10 @@
 # Data-Dam Configuration
 
+rate = 5
+duration = "10s"
+Concurrent = 10
+schemas = ["test"]
+
 [db-config.mysql]
 host = "127.0.0.1"
 port = 3306

@@ -16,6 +16,7 @@ type Generator struct {
 	db         models.DB
 	weight     weighted.W
 	dispatcher *models.JobDispatcher
+	cfg        *Config
 }
 
 // NewGenerator returns a new Generator
@@ -38,6 +39,7 @@ func NewGenerator(cfg *Config, dispatcher *models.JobDispatcher) (*Generator, er
 		db:         db,
 		weight:     weight,
 		dispatcher: dispatcher,
+		cfg:        cfg,
 	}
 	return gen, nil
 }
@@ -48,6 +50,12 @@ func (g *Generator) Run(ctx context.Context) error {
 		err error
 		rl  = rate.NewLimiter(rate.Limit(g.rate), 10)
 	)
+	for _, schema := range g.cfg.Schemas {
+		_, _, err = g.db.PrepareTables(ctx, schema)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
 	for {
 		err = rl.Wait(ctx)
 		if err != nil {

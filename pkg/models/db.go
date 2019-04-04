@@ -43,8 +43,12 @@ type DB interface {
 	// Close closes the database layer.
 	Close() error
 
+	// PrepareTables scan tables from schema
+	// returns `table info slice`, `a slice of column names slice` and whether error happens
+	PrepareTables(ctx context.Context, schema string) ([]*Table, [][]string, error)
+
 	// GetTable gets table information from database.
-	// returns: `talbe info`, `column name slice` and whether error happens
+	// returns: `talbe info`, `column names slice` and whether error happens
 	GetTable(ctx context.Context, schema, table string) (*Table, []string, error)
 
 	// Update updates a record in the database.

@@ -209,3 +209,28 @@ func findColumns(columns []*models.Column, indexColumns map[string][]string) map
 
 	return result
 }
+
+func findTables(db *sql.DB, schema string) ([]string, error) {
+	query := fmt.Sprintf("SHOW TABLES FROM `%s`", schema)
+	rows, err := querySQL(db, query, queryMaxRetry)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	defer rows.Close()
+
+	tables := make([]string, 0)
+	for rows.Next() {
+		var table string
+		err = rows.Scan(&table)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		tables = append(tables, table)
+	}
+
+	if rows.Err() != nil {
+		return nil, errors.Trace(rows.Err())
+	}
+
+	return tables, nil
+}
