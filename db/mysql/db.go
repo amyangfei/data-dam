@@ -27,6 +27,9 @@ type ImpMySQLDB struct {
 	nextID       int64
 }
 
+type mysqlCreator struct {
+}
+
 func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"%s:%s@tcp(%s:%d)/?charset=utf8&interpolateParams=true&readTimeout=%s",
@@ -44,7 +47,7 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 }
 
 // Create creates a models.DB
-func Create(cfg models.DBConfig) (models.DB, error) {
+func (c mysqlCreator) Create(cfg *models.DBConfig) (models.DB, error) {
 	md := &ImpMySQLDB{
 		verbose:      cfg.Verbose,
 		entries:      make([]string, 0),
@@ -216,11 +219,25 @@ func (md *ImpMySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*m
 	default:
 		return nil, errors.NotValidf("DML OpType: %d", opType)
 	}
+	// FIXME: just for test
+	keys := map[string]interface{}{
+		"id": 1,
+	}
+	values := map[string]interface{}{
+		"id":   1,
+		"name": "test",
+		"age":  10,
+	}
 	params := &models.DMLParams{
 		Schema: schema,
 		Table:  name,
-		Keys:   nil,
-		Values: nil,
+		Keys:   keys,
+		Values: values,
 	}
 	return params, nil
+}
+
+func init() {
+	models.RegisterDBCreator("mysql", mysqlCreator{})
+	models.RegisterDBCreator("mariadb", mysqlCreator{})
 }

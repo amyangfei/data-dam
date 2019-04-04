@@ -7,7 +7,6 @@ import (
 	"github.com/smallnest/weighted"
 	"golang.org/x/time/rate"
 
-	md "github.com/amyangfei/data-dam/db/mysql"
 	"github.com/amyangfei/data-dam/pkg/models"
 )
 
@@ -22,8 +21,9 @@ type Generator struct {
 // NewGenerator returns a new Generator
 func NewGenerator(cfg *Config, dispatcher *models.JobDispatcher) (*Generator, error) {
 
-	// TODO: support MySQL only now, add more database support in the future
-	db, err := md.Create(cfg.DBConfig)
+	// FIXME: support MySQL only now
+	creator := models.GetDBCreator("mysql")
+	db, err := creator.Create(&cfg.DBConfig)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

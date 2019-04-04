@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 )
 
 // Column stores column information
@@ -34,7 +35,7 @@ type DMLParams struct {
 
 // DBCreator creates a database layer
 type DBCreator interface {
-	Create(cfg DBConfig) (DB, error)
+	Create(cfg *DBConfig) (DB, error)
 }
 
 // DB is the layer to access the database
@@ -57,4 +58,20 @@ type DB interface {
 
 	// GenerateDML generates a DML record.
 	GenerateDML(ctx context.Context, opType OpType) (*DMLParams, error)
+}
+
+var dbCreators = map[string]DBCreator{}
+
+// RegisterDBCreator registers a creator for the database
+func RegisterDBCreator(name string, creator DBCreator) {
+	_, ok := dbCreators[name]
+	if ok {
+		panic(fmt.Sprintf("duplicate register database %s", name))
+	}
+	dbCreators[name] = creator
+}
+
+// GetDBCreator gets the DBCreator for the database
+func GetDBCreator(name string) DBCreator {
+	return dbCreators[name]
 }

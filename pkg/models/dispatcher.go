@@ -76,7 +76,8 @@ type JobDispatcher struct {
 }
 
 // NewJobDispatcher returns a new JobDispatcher
-func NewJobDispatcher(ctx context.Context, workerCount, batchSize int, cfg *DBConfig) *JobDispatcher {
+func NewJobDispatcher(ctx context.Context, workerCount, batchSize int, cfg *DBConfig, creator DBCreator) (*JobDispatcher, error) {
+	var err error
 	d := &JobDispatcher{
 		WorkerCount: workerCount,
 		BatchSize:   batchSize,
@@ -84,7 +85,12 @@ func NewJobDispatcher(ctx context.Context, workerCount, batchSize int, cfg *DBCo
 	d.jobsClosed.Set(true)
 	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.createJobChans()
-	return d
+	err = d.createDBs(creator, cfg)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return d, nil
 }
 
 func (d *JobDispatcher) closeJobChans() {
@@ -106,6 +112,31 @@ func (d *JobDispatcher) createJobChans() {
 		d.jobs = append(d.jobs, make(chan *sqlJob, d.BatchSize))
 	}
 	d.jobsClosed.Set(false)
+}
+
+func (d *JobDispatcher) closeDBs() error {
+	for _, inst := range d.DBs {
+		if inst != nil {
+			err := inst.Close()
+			if err != nil {
+				return errors.Trace(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (d *JobDispatcher) createDBs(creator DBCreator, cfg *DBConfig) error {
+	d.closeDBs()
+	d.DBs = make([]DB, 0, d.WorkerCount+1)
+	for i := 0; i < d.WorkerCount+1; i++ {
+		newDB, err := creator.Create(cfg)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		d.DBs = append(d.DBs, newDB)
+	}
+	return nil
 }
 
 // AddDML adds a DML job from DMLParams

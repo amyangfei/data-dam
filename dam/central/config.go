@@ -33,6 +33,7 @@ type Config struct {
 	Concurrent int             `toml:"concurrent" json:"concurrent"`
 	DBConfig   models.DBConfig `toml:"db-config" json:"db-config"`
 	OpWeight   []int           `toml:"op-weight" json:"op-weight"`
+	Schemas    []string        `toml:"schemas" json:"schemas"`
 
 	printVersion bool
 }

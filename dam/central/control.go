@@ -76,7 +76,11 @@ func (c *Controller) Start() error {
 		}
 	}()
 
-	dispatcher := models.NewJobDispatcher(c.ctx, c.cfg.Concurrent, backendBatchSize, &c.cfg.DBConfig)
+	creator := models.GetDBCreator("mysql")
+	dispatcher, err := models.NewJobDispatcher(c.ctx, c.cfg.Concurrent, backendBatchSize, &c.cfg.DBConfig, creator)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	wg.Add(1)
 	go func() {
