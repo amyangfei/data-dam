@@ -10,8 +10,10 @@ type Column struct {
 	Idx      int
 	Name     string
 	NotNull  bool
+	Key      string
 	Unsigned bool
 	Tp       string
+	SubTp    string
 	Extra    string
 }
 

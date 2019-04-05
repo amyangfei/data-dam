@@ -3,7 +3,10 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"math/rand"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pingcap/errors"
 
@@ -104,7 +107,13 @@ func getTableColumns(db *sql.DB, table *models.Table, maxRetry int) error {
 		column.Idx = idx
 		column.Name = string(data[0])
 		column.Tp = string(data[1])
+		column.Key = string(data[3])
 		column.Extra = string(data[5])
+		bracketIdx := strings.Index(column.Tp, "(")
+		if bracketIdx > 0 {
+			column.SubTp = column.Tp[bracketIdx+1 : len(column.Tp)-1]
+			column.Tp = column.Tp[:bracketIdx]
+		}
 
 		if strings.ToLower(string(data[2])) == "no" {
 			column.NotNull = true
@@ -233,4 +242,129 @@ func findTables(db *sql.DB, schema string) ([]string, error) {
 	}
 
 	return tables, nil
+}
+
+func getMaxID(db *sql.DB, schema, table string) (int, error) {
+	stmt := fmt.Sprintf("SELECT max(id) as max_id FROM `%s`.`%s`", schema, table)
+	rows, err := db.Query(stmt)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	defer rows.Close()
+	var id int
+	if err := rows.Scan(&id); err != nil {
+		return 0, errors.Trace(err)
+	}
+	return id, nil
+}
+
+func getRandID(db *sql.DB, schema, table string) (int, error) {
+	stmt := fmt.Sprintf("SELECT id FROM `%s`.`%s` ORDER BY RAND() LIMIT 1", schema, table)
+	rows, err := db.Query(stmt)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	defer rows.Close()
+	var id int
+	if err := rows.Scan(&id); err != nil {
+		return 0, errors.Trace(err)
+	}
+	return id, nil
+}
+
+func genRandomValue(column *models.Column) (interface{}, error) {
+	booleans := []string{"TRUE", "FALSE"}
+	upper := strings.ToUpper(column.Tp)
+	var value interface{}
+	switch upper {
+	case "INT":
+		value = rand.Int31()
+	case "INTUNSIGNED":
+		value = rand.Int31()
+	case "BOOLEAN":
+		value = booleans[rand.Intn(len(booleans))]
+	case "BIGINT":
+		value = rand.Int63()
+	case "BIGINTUNSIGNED":
+		value = rand.Int63()
+	case "DOUBLE":
+		value = rand.ExpFloat64()
+	case "DOUBLEUNSIGNED":
+		value = rand.ExpFloat64()
+	case "DECIMAL":
+		value = strconv.FormatFloat(rand.ExpFloat64(), 'f', 5, 64)
+	case "DATETIME", "TIMESTAMP", "TIMESTAMPONUPDATE":
+		t := genRandomTime()
+		value = fmt.Sprintf("'%.4d-%.2d-%.2d %.2d:%.2d:%.2d'", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	case "TIME":
+		t := genRandomTime()
+		value = fmt.Sprintf("'%.2d:%.2d:%.2d'", t.Hour(), t.Minute(), t.Second())
+	case "YEAR":
+		t := genRandomTime()
+		value = fmt.Sprintf("'%.4d'", t.Year())
+	case "CHAR":
+		n, err := strconv.Atoi(column.SubTp)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		value = genRandomUnicodeString(n)
+	case "VARCHAR":
+		n, err := strconv.Atoi(column.SubTp)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		value = genRandomUnicodeString(rand.Intn(n) + 1)
+	case "BLOB":
+		value = genRandomByteString(20)
+	case "TEXT":
+		value = genRandomUnicodeString(20)
+	case "ENUM":
+	case "SET":
+	}
+	return value, nil
+}
+
+func genRandomTime() time.Time {
+	min := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+	max := time.Date(2037, 12, 31, 0, 0, 0, 0, time.UTC).Unix()
+	delta := max - min
+	sec := rand.Int63n(delta) + min
+	return time.Unix(sec, 0)
+}
+
+func genRandomUnicodeString(n int) string {
+	var builder strings.Builder
+	builder.Grow(2 + 3*n)
+	builder.WriteByte('\'')
+	for i := 0; i < n; i++ {
+		// 50% chance generating ASCII string, 50% chance generating Unicode string
+		var r rune
+		switch rand.Intn(2) {
+		case 0:
+			r = rune(rand.Intn(0x80))
+		case 1:
+			r = rune(rand.Intn(0xd800))
+		}
+		switch r {
+		case '\'':
+			builder.WriteString("''")
+		case '\\':
+			builder.WriteString(`\\`)
+		default:
+			builder.WriteRune(r)
+		}
+	}
+	builder.WriteByte('\'')
+	return builder.String()
+}
+
+func genRandomByteString(n int) string {
+	var builder strings.Builder
+	builder.Grow(3 + 2*n)
+	builder.WriteString("x'")
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&builder, "%02X", rand.Intn(256))
+	}
+	builder.WriteString("'")
+	return builder.String()
 }

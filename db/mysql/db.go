@@ -162,6 +162,7 @@ func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*mode
 		columns = append(columns, c.Name)
 	}
 
+	md.entries = append(md.entries, key)
 	md.tables[key] = t
 	md.cacheColumns[key] = columns
 	return t, columns, nil
@@ -232,28 +233,101 @@ func (md *ImpMySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*m
 	if !ok {
 		return nil, errors.Errorf("%s not in table cache", entry)
 	}
-	schema, name := table.Schema, table.Name
+	var (
+		params *models.DMLParams
+		err    error
+	)
 	switch opType {
 	case models.Insert:
+		params, err = md.genInsertSQL(table)
 	case models.Update:
+		params, err = md.genUpdateSQL(table)
 	case models.Delete:
+		params, err = md.genDeleteSQL(table)
 	default:
 		return nil, errors.NotValidf("DML OpType: %d", opType)
 	}
-	// FIXME: just for test
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return params, nil
+}
+
+func (md *ImpMySQLDB) genInsertSQL(table *models.Table) (*models.DMLParams, error) {
+	id, err := getMaxID(md.db, table.Schema, table.Name)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	id++
 	keys := map[string]interface{}{
-		"id": 1,
+		"id": id,
 	}
 	values := map[string]interface{}{
-		"id":   1,
-		"name": "test",
-		"age":  10,
+		"id": id,
+	}
+	for _, column := range table.Columns {
+		if column.Name == "id" {
+			continue
+		}
+		values[column.Name], err = genRandomValue(column)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
 	}
 	params := &models.DMLParams{
-		Schema: schema,
-		Table:  name,
+		Schema: table.Schema,
+		Table:  table.Name,
 		Keys:   keys,
 		Values: values,
+	}
+	return params, nil
+}
+
+func (md *ImpMySQLDB) genUpdateSQL(table *models.Table) (*models.DMLParams, error) {
+	id, err := getRandID(md.db, table.Schema, table.Name)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	keys := map[string]interface{}{
+		"id": id,
+	}
+	var column *models.Column
+	// FIXME: better column selection and way to avoid infinite loop
+	for {
+		column = table.Columns[rand.Intn(len(table.Columns))]
+		if column.Name != "id" && column.Key != "PRI" && column.Key != "UNI" {
+			break
+		}
+	}
+	value, err := genRandomValue(column)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	values := map[string]interface{}{
+		column.Name: value,
+	}
+
+	params := &models.DMLParams{
+		Schema: table.Schema,
+		Table:  table.Name,
+		Keys:   keys,
+		Values: values,
+	}
+	return params, nil
+}
+
+func (md *ImpMySQLDB) genDeleteSQL(table *models.Table) (*models.DMLParams, error) {
+	id, err := getRandID(md.db, table.Schema, table.Name)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	keys := map[string]interface{}{
+		"id": id,
+	}
+	params := &models.DMLParams{
+		Schema: table.Schema,
+		Table:  table.Name,
+		Keys:   keys,
 	}
 	return params, nil
 }
