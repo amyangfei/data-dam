@@ -2,6 +2,8 @@ package central
 
 import (
 	"context"
+	"math/rand"
+	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/smallnest/weighted"
@@ -56,6 +58,7 @@ func (g *Generator) Run(ctx context.Context) error {
 			return errors.Trace(err)
 		}
 	}
+	rand.Seed(time.Now().UnixNano())
 	for {
 		err = rl.Wait(ctx)
 		if err != nil {

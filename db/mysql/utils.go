@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 
@@ -15,6 +16,10 @@ import (
 
 const (
 	queryMaxRetry = 3
+	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
 // TableName returns table name with schema
@@ -245,29 +250,33 @@ func findTables(db *sql.DB, schema string) ([]string, error) {
 }
 
 func getMaxID(db *sql.DB, schema, table string) (int, error) {
-	stmt := fmt.Sprintf("SELECT max(id) as max_id FROM `%s`.`%s`", schema, table)
+	stmt := fmt.Sprintf("SELECT IFNULL(max(id), 1) FROM `%s`.`%s`", schema, table)
 	rows, err := db.Query(stmt)
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
 	defer rows.Close()
 	var id int
-	if err := rows.Scan(&id); err != nil {
-		return 0, errors.Trace(err)
+	for rows.Next() {
+		if err := rows.Scan(&id); err != nil {
+			return 0, errors.Trace(err)
+		}
 	}
 	return id, nil
 }
 
 func getRandID(db *sql.DB, schema, table string) (int, error) {
-	stmt := fmt.Sprintf("SELECT id FROM `%s`.`%s` ORDER BY RAND() LIMIT 1", schema, table)
+	stmt := fmt.Sprintf("SELECT IFNULL(id, 0) FROM `%s`.`%s` ORDER BY RAND() LIMIT 1", schema, table)
 	rows, err := db.Query(stmt)
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
 	defer rows.Close()
 	var id int
-	if err := rows.Scan(&id); err != nil {
-		return 0, errors.Trace(err)
+	for rows.Next() {
+		if err := rows.Scan(&id); err != nil {
+			return 0, errors.Trace(err)
+		}
 	}
 	return id, nil
 }
@@ -307,13 +316,13 @@ func genRandomValue(column *models.Column) (interface{}, error) {
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		value = genRandomUnicodeString(n)
+		value = genRandStringBytesMaskImprSrcUnsafe(n)
 	case "VARCHAR":
 		n, err := strconv.Atoi(column.SubTp)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		value = genRandomUnicodeString(rand.Intn(n) + 1)
+		value = genRandStringBytesMaskImprSrcUnsafe(rand.Intn(n) + 1)
 	case "BLOB":
 		value = genRandomByteString(20)
 	case "TEXT":
@@ -330,6 +339,25 @@ func genRandomTime() time.Time {
 	delta := max - min
 	sec := rand.Int63n(delta) + min
 	return time.Unix(sec, 0)
+}
+
+// https://stackoverflow.com/a/31832326/1115857
+func genRandStringBytesMaskImprSrcUnsafe(n int) string {
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, rand.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = rand.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return *(*string)(unsafe.Pointer(&b))
 }
 
 func genRandomUnicodeString(n int) string {

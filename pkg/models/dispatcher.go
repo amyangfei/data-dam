@@ -149,6 +149,11 @@ func (d *JobDispatcher) AddDML(dml *DMLParams) {
 		keys:   dml.Keys,
 		values: dml.Values,
 	}
+	// TODO: keys causality tuning
+	for k, _ := range dml.Keys {
+		job.key = k
+		break
+	}
 	d.addJob(job)
 }
 

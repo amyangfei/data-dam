@@ -1,9 +1,9 @@
 # Data-Dam Configuration
 
 rate = 5
-duration = "10s"
+duration = "100s"
 Concurrent = 10
-schemas = ["test"]
+schemas = ["dam"]
 
 [db-config.mysql]
 host = "127.0.0.1"
