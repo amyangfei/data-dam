@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql" // import mysql driver
 	"github.com/pingcap/errors"
 	"github.com/siddontang/go/sync2"
 
@@ -149,7 +149,7 @@ func (d *JobDispatcher) AddDML(dml *DMLParams) {
 		values: dml.Values,
 	}
 	// TODO: keys causality tuning
-	for k, _ := range dml.Keys {
+	for k := range dml.Keys {
 		job.key = k
 		break
 	}
