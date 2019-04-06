@@ -67,12 +67,16 @@ func (c *Controller) Start() error {
 	go func() {
 		defer wg.Done()
 		for {
-			err, ok := <-c.runErrorChan
-			if !ok {
+			select {
+			case <-c.ctx.Done():
 				return
+			case err, ok := <-c.runErrorChan:
+				if !ok {
+					return
+				}
+				log.Errorf("RunError source: %s error: %s", err.source, errors.ErrorStack(err.err))
+				c.cancel()
 			}
-			log.Errorf("RunError source: %s error: %s", err.source, errors.ErrorStack(err.err))
-			c.cancel()
 		}
 	}()
 
@@ -99,7 +103,7 @@ func (c *Controller) Start() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		dispatcher.Run()
+		dispatcher.Run(c.ctx)
 	}()
 
 	wg.Wait()

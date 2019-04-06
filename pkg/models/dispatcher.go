@@ -84,7 +84,6 @@ func NewJobDispatcher(ctx context.Context, workerCount, batchSize int, cfg *DBCo
 		BatchSize:   batchSize,
 	}
 	d.jobsClosed.Set(true)
-	d.ctx, d.cancel = context.WithCancel(ctx)
 	d.createJobChans()
 	err = d.createDBs(creator, cfg)
 	if err != nil {
@@ -181,14 +180,12 @@ func (d *JobDispatcher) addJob(job *sqlJob) {
 }
 
 // Run starts dispatcher main loop
-func (d *JobDispatcher) Run() {
+func (d *JobDispatcher) Run(ctx context.Context) {
 	for i := 0; i < d.WorkerCount+1; i++ {
 		d.wg.Add(1)
 		go func(idx int) {
 			defer d.wg.Done()
-			ctx2, cancel := context.WithCancel(d.ctx)
-			d.dispatch(ctx2, d.DBs[idx], d.jobs[idx])
-			cancel()
+			d.dispatch(ctx, d.DBs[idx], d.jobs[idx])
 		}(i)
 	}
 	d.wg.Wait()

@@ -169,7 +169,7 @@ func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*mode
 }
 
 // Insert implements `Insert` of models.DB
-func (md *ImpMySQLDB) Insert(ctx context.Context, schema, table string, values map[string]interface{}) error {
+func (md *ImpMySQLDB) Insert(_ context.Context, schema, table string, values map[string]interface{}) error {
 	var (
 		args        = make([]interface{}, 0, len(values))
 		buf, valbuf strings.Builder
@@ -188,27 +188,27 @@ func (md *ImpMySQLDB) Insert(ctx context.Context, schema, table string, values m
 		idx++
 	}
 	stmt := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s);", schema, table, buf.String(), valbuf.String())
-	_, err = md.db.ExecContext(ctx, stmt, args...)
+	_, err = md.db.Exec(stmt, args...)
 
 	return errors.Trace(err)
 }
 
 // Update implements `Update` of models.DB
-func (md *ImpMySQLDB) Update(ctx context.Context, schema, table string, keys map[string]interface{}, values map[string]interface{}) error {
+func (md *ImpMySQLDB) Update(_ context.Context, schema, table string, keys map[string]interface{}, values map[string]interface{}) error {
 	args := make([]interface{}, 0, len(keys)+len(values))
 	kvs := genSetFields(values, &args)
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("UPDATE `%s`.`%s` SET %s WHERE %s;", schema, table, kvs, where)
-	_, err := md.db.ExecContext(ctx, stmt, args...)
+	_, err := md.db.Exec(stmt, args...)
 	return errors.Trace(err)
 }
 
 // Delete implements `Delete` of models.DB
-func (md *ImpMySQLDB) Delete(ctx context.Context, schema, table string, keys map[string]interface{}) error {
+func (md *ImpMySQLDB) Delete(_ context.Context, schema, table string, keys map[string]interface{}) error {
 	args := make([]interface{}, 0, len(keys))
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s;", schema, table, where)
-	_, err := md.db.ExecContext(ctx, stmt, args...)
+	_, err := md.db.Exec(stmt, args...)
 	return errors.Trace(err)
 }
 
@@ -224,7 +224,7 @@ func (md *ImpMySQLDB) Close() error {
 }
 
 // GenerateDML implements `GenerateDML` of models.DB
-func (md *ImpMySQLDB) GenerateDML(ctx context.Context, opType models.OpType) (*models.DMLParams, error) {
+func (md *ImpMySQLDB) GenerateDML(_ context.Context, opType models.OpType) (*models.DMLParams, error) {
 	if len(md.entries) == 0 {
 		return nil, errors.New("ImpMySQLDB has no table cache")
 	}
