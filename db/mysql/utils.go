@@ -249,14 +249,14 @@ func findTables(db *sql.DB, schema string) ([]string, error) {
 	return tables, nil
 }
 
-func getMaxID(db *sql.DB, schema, table string) (int, error) {
-	stmt := fmt.Sprintf("SELECT IFNULL(max(id), 1) FROM `%s`.`%s`", schema, table)
+func getMaxID(db *sql.DB, schema, table string) (int64, error) {
+	stmt := fmt.Sprintf("SELECT IFNULL(max(id), 0) FROM `%s`.`%s`", schema, table)
 	rows, err := db.Query(stmt)
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
 	defer rows.Close()
-	var id int
+	var id int64
 	for rows.Next() {
 		if err := rows.Scan(&id); err != nil {
 			return 0, errors.Trace(err)
@@ -304,13 +304,13 @@ func genRandomValue(column *models.Column) (interface{}, error) {
 		value = strconv.FormatFloat(rand.ExpFloat64(), 'f', 5, 64)
 	case "DATETIME", "TIMESTAMP", "TIMESTAMPONUPDATE":
 		t := genRandomTime()
-		value = fmt.Sprintf("'%.4d-%.2d-%.2d %.2d:%.2d:%.2d'", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+		value = fmt.Sprintf("%.4d-%.2d-%.2d %.2d:%.2d:%.2d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
 	case "TIME":
 		t := genRandomTime()
-		value = fmt.Sprintf("'%.2d:%.2d:%.2d'", t.Hour(), t.Minute(), t.Second())
+		value = fmt.Sprintf("%.2d:%.2d:%.2d", t.Hour(), t.Minute(), t.Second())
 	case "YEAR":
 		t := genRandomTime()
-		value = fmt.Sprintf("'%.4d'", t.Year())
+		value = fmt.Sprintf("%.4d", t.Year())
 	case "CHAR":
 		n, err := strconv.Atoi(column.SubTp)
 		if err != nil {

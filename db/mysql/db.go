@@ -24,7 +24,7 @@ type ImpMySQLDB struct {
 	entries      []string                 // table name cache: a `schema`.`table` slice
 	tables       map[string]*models.Table // table cache: `schema`.`table` -> table
 	cacheColumns map[string][]string      // table columns cache: `schema`.`table` -> column names list
-	nextID       int64
+	nextIDs      map[string]int64         // table next id cache: `schema`.`table` -> next primary id
 }
 
 type mysqlCreator struct {
@@ -53,6 +53,7 @@ func (c mysqlCreator) Create(cfg *models.DBConfig) (models.DB, error) {
 		entries:      make([]string, 0),
 		tables:       make(map[string]*models.Table),
 		cacheColumns: make(map[string][]string),
+		nextIDs:      make(map[string]int64),
 	}
 	db, err := createDB(cfg.MySQL)
 	if err != nil {
@@ -75,12 +76,21 @@ func (md *ImpMySQLDB) clearTableCache(schema, table string) {
 	}
 	delete(md.tables, key)
 	delete(md.cacheColumns, key)
+	delete(md.nextIDs, key)
 }
 
 func (md *ImpMySQLDB) clearAllTableCache() {
 	md.entries = make([]string, 0)
 	md.tables = make(map[string]*models.Table)
 	md.cacheColumns = make(map[string][]string)
+	md.nextIDs = make(map[string]int64)
+}
+
+func (md *ImpMySQLDB) getNextID(schema, table string) int64 {
+	key := TableName(schema, table)
+	nextID := md.nextIDs[key]
+	md.nextIDs[key] = nextID + 1
+	return nextID
 }
 
 func genSetFields(values map[string]interface{}, args *[]interface{}) string {
@@ -162,9 +172,16 @@ func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*mode
 		columns = append(columns, c.Name)
 	}
 
+	nextID, err := getMaxID(md.db, schema, table)
+	nextID++
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
 	md.entries = append(md.entries, key)
 	md.tables[key] = t
 	md.cacheColumns[key] = columns
+	md.nextIDs[key] = nextID
 	return t, columns, nil
 }
 
@@ -254,11 +271,8 @@ func (md *ImpMySQLDB) GenerateDML(_ context.Context, opType models.OpType) (*mod
 }
 
 func (md *ImpMySQLDB) genInsertSQL(table *models.Table) (*models.DMLParams, error) {
-	id, err := getMaxID(md.db, table.Schema, table.Name)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	id++
+	var err error
+	id := md.getNextID(table.Schema, table.Name)
 	keys := map[string]interface{}{
 		"id": id,
 	}
@@ -275,6 +289,7 @@ func (md *ImpMySQLDB) genInsertSQL(table *models.Table) (*models.DMLParams, erro
 		}
 	}
 	params := &models.DMLParams{
+		Type:   models.Insert,
 		Schema: table.Schema,
 		Table:  table.Name,
 		Keys:   keys,
@@ -308,6 +323,7 @@ func (md *ImpMySQLDB) genUpdateSQL(table *models.Table) (*models.DMLParams, erro
 	}
 
 	params := &models.DMLParams{
+		Type:   models.Update,
 		Schema: table.Schema,
 		Table:  table.Name,
 		Keys:   keys,
@@ -325,6 +341,7 @@ func (md *ImpMySQLDB) genDeleteSQL(table *models.Table) (*models.DMLParams, erro
 		"id": id,
 	}
 	params := &models.DMLParams{
+		Type:   models.Delete,
 		Schema: table.Schema,
 		Table:  table.Name,
 		Keys:   keys,
