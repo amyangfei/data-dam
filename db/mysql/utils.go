@@ -328,7 +328,19 @@ func genRandomValue(column *models.Column) (interface{}, error) {
 	case "TEXT":
 		value = genRandomUnicodeString(20)
 	case "ENUM":
+		candidates := strings.Split(column.SubTp, ",")
+		val := candidates[rand.Intn(len(candidates))]
+		val = val[1 : len(val)-1]
+		value = val
 	case "SET":
+		candidates := strings.Split(column.SubTp, ",")
+		s := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			if rand.Intn(2) == 0 {
+				s = append(s, candidate[1:len(candidate)-1])
+			}
+		}
+		value = strings.Join(s, ",")
 	}
 	return value, nil
 }
