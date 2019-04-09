@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -302,6 +303,8 @@ func genRandomValue(column *models.Column) (interface{}, error) {
 		value = rand.Int63()
 	case "BIGINTUNSIGNED":
 		value = rand.Int63()
+	case "FLOAT":
+		value = rand.Float32() * math.MaxFloat32
 	case "DOUBLE":
 		value = rand.ExpFloat64()
 	case "DOUBLEUNSIGNED":
