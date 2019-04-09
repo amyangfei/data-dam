@@ -20,6 +20,8 @@ const (
 	letterIdxBits = 6                    // 6 bits to represent a letter index
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+	tinyIntMax    = 1 << 7
+	smallIntMax   = 1 << 15
 )
 
 // TableName returns table name with schema
@@ -286,6 +288,10 @@ func genRandomValue(column *models.Column) (interface{}, error) {
 	upper := strings.ToUpper(column.Tp)
 	var value interface{}
 	switch upper {
+	case "TINYINT":
+		value = rand.Intn(tinyIntMax)
+	case "SMALLINT":
+		value = rand.Intn(smallIntMax)
 	case "INT":
 		value = rand.Int31()
 	case "INTUNSIGNED":
