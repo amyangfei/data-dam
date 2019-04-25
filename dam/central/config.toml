@@ -4,6 +4,10 @@ rate = 5
 duration = "100s"
 Concurrent = 10
 schemas = ["dam"]
+op-weight = [4, 2, 1, 0]
+
+[db-config]
+verbose = true
 
 [db-config.mysql]
 host = "127.0.0.1"

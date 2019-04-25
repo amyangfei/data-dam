@@ -185,6 +185,24 @@ func (md *ImpMySQLDB) GetTable(ctx context.Context, schema, table string) (*mode
 	return t, columns, nil
 }
 
+func (md *ImpMySQLDB) genPlainSQL(stmt string, args []interface{}) string {
+	for _, arg := range args {
+		if arg == nil {
+			stmt = strings.Replace(stmt, "?", "NULL", 1)
+		} else {
+			switch arg.(type) {
+			case int, int32, int64:
+				stmt = strings.Replace(stmt, "?", fmt.Sprintf("%d", arg), 1)
+			case float32, float64:
+				stmt = strings.Replace(stmt, "?", fmt.Sprintf("%f", arg), 1)
+			default:
+				stmt = strings.Replace(stmt, "?", fmt.Sprintf("'%s'", arg), 1)
+			}
+		}
+	}
+	return stmt
+}
+
 // Insert implements `Insert` of models.DB
 func (md *ImpMySQLDB) Insert(_ context.Context, schema, table string, values map[string]interface{}) error {
 	var (
@@ -207,6 +225,11 @@ func (md *ImpMySQLDB) Insert(_ context.Context, schema, table string, values map
 	stmt := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s);", schema, table, buf.String(), valbuf.String())
 	_, err = md.db.Exec(stmt, args...)
 
+	if md.verbose {
+		stmt = md.genPlainSQL(stmt, args)
+		fmt.Println(stmt)
+	}
+
 	return errors.Trace(err)
 }
 
@@ -217,6 +240,12 @@ func (md *ImpMySQLDB) Update(_ context.Context, schema, table string, keys map[s
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("UPDATE `%s`.`%s` SET %s WHERE %s;", schema, table, kvs, where)
 	_, err := md.db.Exec(stmt, args...)
+
+	if md.verbose {
+		stmt = md.genPlainSQL(stmt, args)
+		fmt.Println(stmt)
+	}
+
 	return errors.Trace(err)
 }
 
@@ -226,6 +255,12 @@ func (md *ImpMySQLDB) Delete(_ context.Context, schema, table string, keys map[s
 	where := genWhere(keys, &args)
 	stmt := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s;", schema, table, where)
 	_, err := md.db.Exec(stmt, args...)
+
+	if md.verbose {
+		stmt = md.genPlainSQL(stmt, args)
+		fmt.Println(stmt)
+	}
+
 	return errors.Trace(err)
 }
 
