@@ -217,11 +217,11 @@ func (md *ImpMySQLDB) Insert(_ context.Context, schema, table string, values map
 
 	build := func(key string, value interface{}) {
 		if idx == len(values)-1 {
-			fmt.Fprintf(&buf, "`%s`", key)
-			fmt.Fprintf(&valbuf, "?")
+			buf.WriteString("`" + key + "`")
+			valbuf.WriteString("?")
 		} else {
-			fmt.Fprintf(&buf, "`%s`, ", key)
-			fmt.Fprintf(&valbuf, "?, ")
+			buf.WriteString("`" + key + "`, ")
+			valbuf.WriteString("?, ")
 		}
 		args = append(args, value)
 		idx++
