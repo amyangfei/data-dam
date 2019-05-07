@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 
 	"github.com/pingcap/errors"
@@ -18,8 +19,9 @@ const (
 
 // ImpMySQLDB implements models.DB
 type ImpMySQLDB struct {
-	db      *sql.DB
-	verbose bool
+	db         *sql.DB
+	verbose    bool
+	sortFields bool
 
 	entries      []string                 // table name cache: a `schema`.`table` slice
 	tables       map[string]*models.Table // table cache: `schema`.`table` -> table
@@ -49,6 +51,7 @@ func createDB(cfg models.MySQLConfig) (*sql.DB, error) {
 // Create creates a models.DB
 func (c mysqlCreator) Create(cfg *models.DBConfig) (models.DB, error) {
 	md := &ImpMySQLDB{
+		sortFields:   cfg.SortFields,
 		verbose:      cfg.Verbose,
 		entries:      make([]string, 0),
 		tables:       make(map[string]*models.Table),
@@ -211,16 +214,32 @@ func (md *ImpMySQLDB) Insert(_ context.Context, schema, table string, values map
 		idx         = 0
 		err         error
 	)
-	for k, v := range values {
+
+	build := func(key string, value interface{}) {
 		if idx == len(values)-1 {
-			fmt.Fprintf(&buf, "`%s`", k)
+			fmt.Fprintf(&buf, "`%s`", key)
 			fmt.Fprintf(&valbuf, "?")
 		} else {
-			fmt.Fprintf(&buf, "`%s`, ", k)
+			fmt.Fprintf(&buf, "`%s`, ", key)
 			fmt.Fprintf(&valbuf, "?, ")
 		}
-		args = append(args, v)
+		args = append(args, value)
 		idx++
+	}
+
+	if md.sortFields {
+		var keys []string
+		for k := range values {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			build(k, values[k])
+		}
+	} else {
+		for k, v := range values {
+			build(k, v)
+		}
 	}
 	stmt := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s);", schema, table, buf.String(), valbuf.String())
 	_, err = md.db.Exec(stmt, args...)

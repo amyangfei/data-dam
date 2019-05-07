@@ -2,8 +2,9 @@ package models
 
 // DBConfig is the full database set configuration
 type DBConfig struct {
-	Verbose bool        `toml:"verbose" json:"verbose"` // verbose logging
-	MySQL   MySQLConfig `toml:"mysql" json:"mysql"`     // mysql config
+	Verbose    bool        `toml:"verbose" json:"verbose"`         // verbose logging
+	SortFields bool        `toml:"sort-fields" json:"sort-fields"` // whether to sort k-v fields in SQL
+	MySQL      MySQLConfig `toml:"mysql" json:"mysql"`             // mysql config
 }
 
 // MySQLConfig stores mysql config

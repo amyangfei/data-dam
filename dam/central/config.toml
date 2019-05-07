@@ -8,6 +8,7 @@ op-weight = [4, 2, 1, 0]
 
 [db-config]
 verbose = true
+sort-fields = true
 
 [db-config.mysql]
 host = "127.0.0.1"
